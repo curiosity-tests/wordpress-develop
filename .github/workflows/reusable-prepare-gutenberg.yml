@@ -1,3 +1,21 @@
+
+# racecar fork-testbed patch. Changes from upstream:
+#   1. a `leg` workflow_call input, forwarded by the calling workflow. Neither
+#      env nor inputs cross a workflow_call boundary, so this workflow has to
+#      recompute CHALK_ON from its own input.
+#   2. actions/checkout -> crashappsec/action-checkout, which wraps checkout and
+#      setup-chalk-action; `chalk:` is the only variable separating the arms.
+#   3. permissions: id-token: write for the action's OIDC connect (the block
+#      zeroes unlisted scopes, so everything upstream relied on is restated).
+#   4. A fail-closed assertion on the instrumented arm.
+#   5. fail-fast: false on every matrix -- a measurement-integrity change, not a
+#      build change: the instrumented arm has strictly more failure surface, so
+#      leaving fail-fast on cancels instrumented siblings more often than
+#      baseline ones and biases the comparison.
+#   6. the concurrency group carries the leg. Both arms run on the same ref, so
+#      upstream's github.ref-keyed group put them in one group and the second
+#      dispatch cancelled the first. Also cancellation-only, never a build change.
+# Build and test COMMANDS are unchanged from upstream.
 ##
 # A reusable workflow that downloads and verifies the Gutenberg build once per
 # calling workflow run.
@@ -7,6 +25,16 @@ name: Prepare Gutenberg build
 on:
   workflow_call:
     inputs:
+      leg:
+        description: "baseline or instrumented, forwarded by the calling workflow"
+        type: string
+        required: false
+        default: ""
+      profile:
+        description: "CrashOverride chalk profile"
+        type: string
+        required: false
+        default: curiosity-tests-racecar
       repository:
         description: 'The repository to check out. Defaults to the repository calling this workflow.'
         required: false
@@ -26,7 +54,12 @@ on:
 
 # Disable permissions for all available scopes by default.
 # Any needed permissions should be configured at the job level.
-permissions: {}
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
 
 jobs:
   prepare-gutenberg:
@@ -38,6 +71,7 @@ jobs:
       gutenberg-sha: ${{ steps.download.outputs.gutenberg-sha }}
     permissions:
       contents: read
+      id-token: write
 
     steps:
       # `ref` otherwise falls back to this run's commit, which another repository does not have.
@@ -61,14 +95,28 @@ jobs:
           fi
 
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: crashappsec/action-checkout@main
         with:
+          chalk: ${{ env.CHALK_ON }}
+          profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+          observables_continue_on_error: false
+          lfs: false
           repository: ${{ inputs.repository || github.repository }}
           # Resolve the Gutenberg ref from the exact commit that started this workflow run,
           # unless the caller is preparing a build for a repository or branch of its own.
           ref: ${{ inputs.ref || github.sha }}
           show-progress: ${{ runner.debug == '1' && 'true' || 'false' }}
           persist-credentials: false
+
+      - name: Assert instrumentation is live
+        # Socket existence, not LD_PRELOAD: co-monitor's loader clears
+        # LD_PRELOAD once it has injected, so an empty value is what success
+        # looks like. co-hostd also daemonizes, so pgrep does not match it.
+        if: env.CHALK_ON == 'true'
+        run: |
+          test -n "${CURIOSITY_ROOT:-}" || { echo "::error::CURIOSITY_ROOT unset - observables never installed"; exit 1; }
+          test -S "${CURIOSITY_SOCKET_NAME:?socket name unset}" || { echo "::error::co-hostd socket absent"; exit 1; }
+
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
