@@ -1,5 +1,24 @@
 name: PHPUnit Tests
 
+# racecar fork-testbed patch. Changes from upstream:
+#   1. workflow_dispatch with a `leg` input so racecar can drive the run and pick
+#      baseline vs instrumented.
+#   2. actions/checkout -> crashappsec/action-checkout, which wraps checkout and
+#      setup-chalk-action; `chalk:` is the only variable separating the arms.
+#   3. permissions: id-token: write for the action's OIDC connect (the block
+#      zeroes unlisted scopes, so everything upstream relied on is restated).
+#   4. A fail-closed assertion on the instrumented arm.
+#   5. fail-fast: false on every matrix -- a measurement-integrity change, not a
+#      build change: the instrumented arm has strictly more failure surface, so
+#      leaving fail-fast on cancels instrumented siblings more often than
+#      baseline ones and biases the comparison.
+#   6. the concurrency group carries the leg. Both arms run on the same ref, so
+#      upstream's github.ref-keyed group put them in one group and the second
+#      dispatch cancelled the first. Also cancellation-only, never a build change.
+# Build and test COMMANDS are unchanged from upstream.
+
+run-name: "PHPUnit Tests ${{ inputs.leg || 'push' }} ${{ inputs.racecar_run }}"
+
 on:
   push:
     branches:
@@ -36,6 +55,20 @@ on:
       - '.github/workflows/reusable-phpunit-tests-*.yml'
       - '.github/workflows/reusable-prepare-gutenberg.yml'
   workflow_dispatch:
+    inputs:
+      leg:
+        description: "baseline (uninstrumented) or instrumented (under chalk/curiosity)"
+        type: choice
+        options: [instrumented, baseline]
+        default: instrumented
+      profile:
+        description: "CrashOverride chalk profile"
+        type: string
+        default: curiosity-tests-racecar
+      racecar_run:
+        description: "racecar correlation token, echoed into the run name"
+        type: string
+        default: ""
   # Once weekly On Sundays at 00:00 UTC.
   schedule:
     - cron: '0 0 * * 0'
@@ -44,22 +77,31 @@ on:
 concurrency:
   # The concurrency group contains the workflow name and the branch name for pull requests
   # or the commit hash for any other events.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}-${{ inputs.leg || 'push' }}
   cancel-in-progress: true
 
 # Disable permissions for all available scopes by default.
 # Any needed permissions should be configured at the job level.
-permissions: {}
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  CHALK_ON: ${{ github.event_name == 'workflow_dispatch' && inputs.leg != 'baseline' }}
 
 jobs:
   # Downloads and verifies the Gutenberg build once for all PHPUnit jobs.
   prepare-gutenberg:
     name: Prepare Gutenberg Assets
     uses: ./.github/workflows/reusable-prepare-gutenberg.yml
+    with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
     permissions:
       contents: read
+      id-token: write
     if: |
-      github.repository == 'WordPress/wordpress-develop' || (
+      github.repository == 'WordPress/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
         github.event_name == 'pull_request' && (
           ! github.event.repository.private ||
           ! github.event.pull_request.draft ||
@@ -80,13 +122,14 @@ jobs:
     needs: prepare-gutenberg
     permissions:
       contents: read
+      id-token: write
     secrets:
       CODEVITALS_PROJECT_TOKEN: ${{ secrets.CODEVITALS_PROJECT_TOKEN }}
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      startsWith( github.repository, 'WordPress/' ) && (
-        github.repository == 'WordPress/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
           github.event_name == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -146,6 +189,8 @@ jobs:
             memcached: false
             report: true
     with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       os: ${{ matrix.os }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
@@ -173,12 +218,13 @@ jobs:
     needs: prepare-gutenberg
     permissions:
       contents: read
+      id-token: write
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      startsWith( github.repository, 'WordPress/' ) && (
-        github.repository == 'WordPress/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
           github.event_name == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -212,6 +258,8 @@ jobs:
           multisite: true
           memcached: true
     with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       os: ${{ matrix.os }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
@@ -240,12 +288,13 @@ jobs:
     needs: prepare-gutenberg
     permissions:
       contents: read
+      id-token: write
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      startsWith( github.repository, 'WordPress/' ) && (
-        github.repository == 'WordPress/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
           github.event_name == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -270,6 +319,8 @@ jobs:
           - db-type: 'mysql'
             db-version: '12.1'
     with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       os: ${{ matrix.os }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
@@ -296,12 +347,13 @@ jobs:
     needs: prepare-gutenberg
     permissions:
       contents: read
+      id-token: write
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      startsWith( github.repository, 'WordPress/' ) && (
-        github.repository == 'WordPress/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
           github.event_name == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -319,6 +371,8 @@ jobs:
         # A matrix value is needed in the 'name' directive for proper grouping in the GitHub UI.
         label: [ 'HTML API' ]
     with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
       db-version: ${{ matrix.db-version }}
@@ -339,11 +393,12 @@ jobs:
     needs: prepare-gutenberg
     permissions:
       contents: read
+      id-token: write
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      ! startsWith( github.repository, 'WordPress/' ) &&
+      ! ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) &&
       github.event_name == 'pull_request' && (
         ! github.event.repository.private ||
         ! github.event.pull_request.draft ||
@@ -387,6 +442,8 @@ jobs:
             db-version: '9.7'
 
     with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       php: ${{ matrix.php }}
       db-version: ${{ matrix.db-version }}
       db-type: ${{ matrix.db-type }}
@@ -406,9 +463,10 @@ jobs:
     needs: prepare-gutenberg
     permissions:
       contents: read
+      id-token: write
     if: |
-      startsWith( github.repository, 'WordPress/' ) && (
-        github.repository == 'WordPress/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
           github.event_name == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -431,6 +489,8 @@ jobs:
             db-version: '9.7'
 
     with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       php: ${{ matrix.php }}
       db-version: ${{ matrix.db-version }}
       db-type: ${{ matrix.db-type }}
@@ -446,9 +506,12 @@ jobs:
     permissions:
       actions: read
       contents: read
+      id-token: write
     needs: [ prepare-gutenberg, test-with-mysql, test-with-mariadb, test-innovation-releases, html-api-test-groups, limited-matrix-for-forks, pre-release-php-8-6 ]
     if: ${{ github.repository == 'WordPress/wordpress-develop' && github.event_name != 'pull_request' && always() }}
     with:
+      leg: ${{ inputs.leg }}
+      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       calling_status: ${{ contains( needs.*.result, 'cancelled' ) && 'cancelled' || contains( needs.*.result, 'failure' ) && 'failure' || 'success' }}
     secrets:
       SLACK_GHA_SUCCESS_WEBHOOK: ${{ secrets.SLACK_GHA_SUCCESS_WEBHOOK }}
@@ -461,6 +524,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       actions: write
+      contents: read
+      id-token: write
     needs: [ slack-notifications ]
     if: |
       always() &&
