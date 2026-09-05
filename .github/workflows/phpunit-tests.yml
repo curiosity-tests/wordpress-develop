@@ -77,8 +77,8 @@ on:
 concurrency:
   # The concurrency group contains the workflow name and the branch name for pull requests
   # or the commit hash for any other events.
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}-${{ inputs.leg || 'push' }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}-${{ inputs.leg || 'push' }}-${{ inputs.racecar_run }}
+  cancel-in-progress: false
 
 # Disable permissions for all available scopes by default.
 # Any needed permissions should be configured at the job level.
@@ -94,9 +94,6 @@ jobs:
   prepare-gutenberg:
     name: Prepare Gutenberg Assets
     uses: ./.github/workflows/reusable-prepare-gutenberg.yml
-    with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
     permissions:
       contents: read
       id-token: write
@@ -189,8 +186,6 @@ jobs:
             memcached: false
             report: true
     with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       os: ${{ matrix.os }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
@@ -258,8 +253,6 @@ jobs:
           multisite: true
           memcached: true
     with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       os: ${{ matrix.os }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
@@ -319,8 +312,6 @@ jobs:
           - db-type: 'mysql'
             db-version: '12.1'
     with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       os: ${{ matrix.os }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
@@ -371,8 +362,6 @@ jobs:
         # A matrix value is needed in the 'name' directive for proper grouping in the GitHub UI.
         label: [ 'HTML API' ]
     with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       php: ${{ matrix.php }}
       db-type: ${{ matrix.db-type }}
       db-version: ${{ matrix.db-version }}
@@ -442,8 +431,6 @@ jobs:
             db-version: '9.7'
 
     with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       php: ${{ matrix.php }}
       db-version: ${{ matrix.db-version }}
       db-type: ${{ matrix.db-type }}
@@ -489,8 +476,6 @@ jobs:
             db-version: '9.7'
 
     with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       php: ${{ matrix.php }}
       db-version: ${{ matrix.db-version }}
       db-type: ${{ matrix.db-type }}
@@ -510,8 +495,6 @@ jobs:
     needs: [ prepare-gutenberg, test-with-mysql, test-with-mariadb, test-innovation-releases, html-api-test-groups, limited-matrix-for-forks, pre-release-php-8-6 ]
     if: ${{ github.repository == 'WordPress/wordpress-develop' && github.event_name != 'pull_request' && always() }}
     with:
-      leg: ${{ inputs.leg }}
-      profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
       calling_status: ${{ contains( needs.*.result, 'cancelled' ) && 'cancelled' || contains( needs.*.result, 'failure' ) && 'failure' || 'success' }}
     secrets:
       SLACK_GHA_SUCCESS_WEBHOOK: ${{ secrets.SLACK_GHA_SUCCESS_WEBHOOK }}
