@@ -1,3 +1,21 @@
+
+# racecar fork-testbed patch. Changes from upstream:
+#   1. a `leg` workflow_call input, forwarded by the calling workflow. Neither
+#      env nor inputs cross a workflow_call boundary, so this workflow has to
+#      recompute CHALK_ON from its own input.
+#   2. actions/checkout -> crashappsec/action-checkout, which wraps checkout and
+#      setup-chalk-action; `chalk:` is the only variable separating the arms.
+#   3. permissions: id-token: write for the action's OIDC connect (the block
+#      zeroes unlisted scopes, so everything upstream relied on is restated).
+#   4. A fail-closed assertion on the instrumented arm.
+#   5. fail-fast: false on every matrix -- a measurement-integrity change, not a
+#      build change: the instrumented arm has strictly more failure surface, so
+#      leaving fail-fast on cancels instrumented siblings more often than
+#      baseline ones and biases the comparison.
+#   6. the concurrency group carries the leg. Both arms run on the same ref, so
+#      upstream's github.ref-keyed group put them in one group and the second
+#      dispatch cancelled the first. Also cancellation-only, never a build change.
+# Build and test COMMANDS are unchanged from upstream.
 ##
 # A reusable workflow that runs the PHPUnit test suite with the specified configuration.
 #
@@ -8,6 +26,16 @@ name: Run PHPUnit tests
 on:
   workflow_call:
     inputs:
+      leg:
+        description: "baseline or instrumented, forwarded by the calling workflow"
+        type: string
+        required: false
+        default: ""
+      profile:
+        description: "CrashOverride chalk profile"
+        type: string
+        required: false
+        default: curiosity-tests-racecar
       os:
         description: 'Operating system to run tests on'
         required: false
@@ -111,6 +139,7 @@ on:
         required: false
 
 env:
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
   LOCAL_PHP: ${{ inputs.php }}-fpm
   LOCAL_PHP_XDEBUG: false
   LOCAL_PHP_XDEBUG_MODE: 'develop,debug'
@@ -123,7 +152,9 @@ env:
 
 # Disable permissions for all available scopes by default.
 # Any needed permissions should be configured at the job level.
-permissions: {}
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   # Runs the PHPUnit tests for WordPress.
@@ -157,6 +188,7 @@ jobs:
     timeout-minutes: ${{ inputs.coverage-report && 120 || inputs.php == '8.4' && 30 || 20 }}
     permissions:
       contents: read
+      id-token: write
 
     steps:
       # `ref` otherwise falls back to checkout's own default, which for another repository is
@@ -186,12 +218,26 @@ jobs:
           echo "PHP_FPM_GID=$(id -g)" >> "$GITHUB_ENV"
 
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: crashappsec/action-checkout@main
         with:
+          chalk: ${{ env.CHALK_ON }}
+          profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+          observables_continue_on_error: false
+          lfs: false
           repository: ${{ inputs.repository || github.repository }}
           ref: ${{ inputs.ref }}
           show-progress: ${{ runner.debug == '1' && 'true' || 'false' }}
           persist-credentials: false
+
+      - name: Assert instrumentation is live
+        # Socket existence, not LD_PRELOAD: co-monitor's loader clears
+        # LD_PRELOAD once it has injected, so an empty value is what success
+        # looks like. co-hostd also daemonizes, so pgrep does not match it.
+        if: env.CHALK_ON == 'true'
+        run: |
+          test -n "${CURIOSITY_ROOT:-}" || { echo "::error::CURIOSITY_ROOT unset - observables never installed"; exit 1; }
+          test -S "${CURIOSITY_SOCKET_NAME:?socket name unset}" || { echo "::error::co-hostd socket absent"; exit 1; }
+
 
       # If the caller specifies an overlay artifact then unpack it over the checkout.
       - name: Download overlay artifact
