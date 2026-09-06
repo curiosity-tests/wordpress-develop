@@ -101,7 +101,7 @@ jobs:
       contents: read
       id-token: write
     if: |
-      github.repository == 'curiosity-tests/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
+      github.repository == 'WordPress/wordpress-develop' || github.repository == 'WordPress/wordpress-develop' || (
         'push' == 'pull_request' && (
           ! github.event.repository.private ||
           ! github.event.pull_request.draft ||
@@ -128,8 +128,8 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
-        github.repository == 'curiosity-tests/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'WordPress/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'WordPress/wordpress-develop' || (
           'push' == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -223,8 +223,8 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
-        github.repository == 'curiosity-tests/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'WordPress/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'WordPress/wordpress-develop' || (
           'push' == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -293,8 +293,8 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
-        github.repository == 'curiosity-tests/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'WordPress/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'WordPress/wordpress-develop' || (
           'push' == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -352,8 +352,8 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
-        github.repository == 'curiosity-tests/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'WordPress/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'WordPress/wordpress-develop' || (
           'push' == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -398,7 +398,7 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
     if: |
-      ! ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) &&
+      ! ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'WordPress/wordpress-develop' ) &&
       'push' == 'pull_request' && (
         ! github.event.repository.private ||
         ! github.event.pull_request.draft ||
@@ -465,8 +465,8 @@ jobs:
       contents: read
       id-token: write
     if: |
-      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'curiosity-tests/wordpress-develop' ) && (
-        github.repository == 'curiosity-tests/wordpress-develop' || github.repository == 'curiosity-tests/wordpress-develop' || (
+      ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'WordPress/wordpress-develop' ) && (
+        github.repository == 'WordPress/wordpress-develop' || github.repository == 'WordPress/wordpress-develop' || (
           'push' == 'pull_request' && (
             ! github.event.repository.private ||
             ! github.event.pull_request.draft ||
@@ -508,7 +508,7 @@ jobs:
       contents: read
       id-token: write
     needs: [ prepare-gutenberg, test-with-mysql, test-with-mariadb, test-innovation-releases, html-api-test-groups, limited-matrix-for-forks, pre-release-php-8-6 ]
-    if: ${{ github.repository == 'curiosity-tests/wordpress-develop' && 'push' != 'pull_request' && always() }}
+    if: ${{ github.repository == 'WordPress/wordpress-develop' && 'push' != 'pull_request' && always() }}
     with:
       leg: ${{ inputs.leg }}
       profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
@@ -529,7 +529,7 @@ jobs:
     needs: [ slack-notifications ]
     if: |
       always() &&
-      github.repository == 'curiosity-tests/wordpress-develop' &&
+      github.repository == 'WordPress/wordpress-develop' &&
       'push' != 'pull_request' &&
       github.run_attempt < 2 &&
       (
