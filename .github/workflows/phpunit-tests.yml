@@ -100,8 +100,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    # racecar: admit our workflow_dispatch. limited-matrix-for-forks needs this
+    # job, so the whole fork path cascade-skipped behind it.
     if: |
-      github.repository == 'WordPress/wordpress-develop' || github.repository == 'WordPress/wordpress-develop' || (
+      github.repository == 'WordPress/wordpress-develop' || github.event_name == 'workflow_dispatch' || (
         'push' == 'pull_request' && (
           ! github.event.repository.private ||
           ! github.event.pull_request.draft ||
@@ -397,13 +399,19 @@ jobs:
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       WPT_REPORT_API_KEY: ${{ secrets.WPT_REPORT_API_KEY }}
+    # racecar: this is upstream's OWN fork path -- the `! ( startsWith ... )` arm.
+    # Only the event clause is widened to include workflow_dispatch; the identity
+    # test is untouched. Sets neither `report` nor `coverage-report`, so nothing
+    # is submitted to WordPress.org, codevitals or Codecov.
     if: |
       ! ( startsWith( github.repository, 'WordPress/' ) || github.repository == 'WordPress/wordpress-develop' ) &&
-      'push' == 'pull_request' && (
-        ! github.event.repository.private ||
-        ! github.event.pull_request.draft ||
-        contains( github.event.pull_request.labels.*.name, 'Draft Workflow Runs' )
-      )
+      ( github.event_name == 'workflow_dispatch' || (
+        github.event_name == 'pull_request' && (
+          ! github.event.repository.private ||
+          ! github.event.pull_request.draft ||
+          contains( github.event.pull_request.labels.*.name, 'Draft Workflow Runs' )
+        )
+      ) )
     strategy:
       fail-fast: false
       matrix:
