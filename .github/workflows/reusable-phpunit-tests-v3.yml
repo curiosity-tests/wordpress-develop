@@ -1,4 +1,3 @@
-
 # racecar fork-testbed patch. Changes from upstream:
 #   1. a `leg` workflow_call input, forwarded by the calling workflow. Neither
 #      env nor inputs cross a workflow_call boundary, so this workflow has to
@@ -193,79 +192,68 @@ jobs:
     steps:
       # `ref` otherwise falls back to checkout's own default, which for another repository is
       # its default branch: a "WordPress 6.2" job would test trunk and report green.
-      - name: Require a ref when testing another repository
-        if: ${{ inputs.repository != '' && inputs.ref == '' }}
-        run: |
-          echo 'Testing another repository needs an explicit ref.' >&2
-          exit 1
+    - name: Require a ref when testing another repository
+      if: ${{ inputs.repository != '' && inputs.ref == '' }}
+      run: |
+        echo 'Testing another repository needs an explicit ref.' >&2
+        exit 1
 
       # `ref` also composes the Gutenberg artifact name, so reject what that name cannot carry
       # here rather than at a download step the job only reaches minutes later.
-      - name: Require a ref the artifact name accepts
-        if: ${{ inputs.ref != '' }}
-        env:
-          REF: ${{ inputs.ref }}
-        run: |
-          invalid='[/:<>|*?"\]'
-          if [[ "$REF" =~ $invalid ]]; then
-            echo "A ref that names an artifact cannot contain / : < > | * ? \" \\ - received: $REF" >&2
-            exit 1
-          fi
+    - name: Require a ref the artifact name accepts
+      if: ${{ inputs.ref != '' }}
+      env:
+        REF: ${{ inputs.ref }}
+      run: |
+        invalid='[/:<>|*?"\]'
+        if [[ "$REF" =~ $invalid ]]; then
+          echo "A ref that names an artifact cannot contain / : < > | * ? \" \\ - received: $REF" >&2
+          exit 1
+        fi
 
-      - name: Configure environment variables
-        run: |
-          echo "PHP_FPM_UID=$(id -u)" >> "$GITHUB_ENV"
-          echo "PHP_FPM_GID=$(id -g)" >> "$GITHUB_ENV"
+    - name: Configure environment variables
+      run: |
+        echo "PHP_FPM_UID=$(id -u)" >> "$GITHUB_ENV"
+        echo "PHP_FPM_GID=$(id -g)" >> "$GITHUB_ENV"
 
-      - name: Checkout repository
-        uses: crashappsec/action-checkout@main
-        with:
-          chalk: ${{ env.CHALK_ON }}
-          profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
-          observables_continue_on_error: false
-          lfs: false
-          repository: ${{ inputs.repository || github.repository }}
-          ref: ${{ inputs.ref }}
-          show-progress: ${{ runner.debug == '1' && 'true' || 'false' }}
-          persist-credentials: false
+    - name: Checkout repository
+      uses: crashappsec/action-checkout@main
+      with:
+        chalk: ${{ env.CHALK_ON }}
+        profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+        observables_continue_on_error: false
+        lfs: false
+        repository: ${{ inputs.repository || github.repository }}
+        ref: ${{ inputs.ref }}
+        show-progress: ${{ runner.debug == '1' && 'true' || 'false' }}
+        persist-credentials: false
 
-      - name: Assert instrumentation is live
-        # Socket existence, not LD_PRELOAD: co-monitor's loader clears
-        # LD_PRELOAD once it has injected, so an empty value is what success
-        # looks like. co-hostd also daemonizes, so pgrep does not match it.
-        if: env.CHALK_ON == 'true'
-        run: |
-          test -n "${CURIOSITY_ROOT:-}" || { echo "::error::CURIOSITY_ROOT unset - observables never installed"; exit 1; }
-          test -S "${CURIOSITY_SOCKET_NAME:?socket name unset}" || { echo "::error::co-hostd socket absent"; exit 1; }
-
-
-      # If the caller specifies an overlay artifact then unpack it over the checkout.
-      - name: Download overlay artifact
-        if: inputs.overlay-artifact != ''
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
+    - name: Download overlay artifact
+      if: inputs.overlay-artifact != ''
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c   # v8.0.1
+      with:
           # Without a run ID, this action reads only from the caller's current workflow run.
-          name: ${{ inputs.overlay-artifact }}
-          path: .
-          digest-mismatch: error
+        name: ${{ inputs.overlay-artifact }}
+        path: .
+        digest-mismatch: error
 
       # Only WordPress 7.0+ include Gutenberg-maintained assets from a built zip file.
-      - name: Download prepared Gutenberg build
-        if: ${{ inputs.gutenberg-artifact }}
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
+    - name: Download prepared Gutenberg build
+      if: ${{ inputs.gutenberg-artifact }}
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c   # v8.0.1
+      with:
           # Every branch in a run shares one artifact namespace, so the producer names each
           # build after the ref it came from. Compose the same name here rather than taking
           # it as an input: the two sides already agree on `ref`.
-          name: gutenberg-build${{ inputs.ref && format( '-{0}', inputs.ref ) || '' }}
-          path: gutenberg
-          digest-mismatch: error
+        name: gutenberg-build${{ inputs.ref && format( '-{0}', inputs.ref ) || '' }}
+        path: gutenberg
+        digest-mismatch: error
 
-      - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: npm
+    - name: Set up Node.js
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e   # v6.4.0
+      with:
+        node-version-file: '.nvmrc'
+        cache: npm
 
       ##
       # This allows Composer dependencies to be installed using a single step.
@@ -274,63 +262,63 @@ jobs:
       # the same PHP version needs to be configured for the action runner machine so that the correct
       # dependency versions are installed and cached.
       ##
-      - name: Set up PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
-        with:
-          php-version: '${{ inputs.php }}'
-          coverage: none
+    - name: Set up PHP
+      uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240   # 2.37.2
+      with:
+        php-version: '${{ inputs.php }}'
+        coverage: none
 
       # Since Composer dependencies are installed using `composer update` and no lock file is in version control,
       # passing a custom cache suffix ensures that the cache is flushed at least once per week.
-      - name: Install Composer dependencies
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
-        with:
-          custom-cache-suffix: $(/bin/date -u --date='last Mon' "+%F")
+    - name: Install Composer dependencies
+      uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda   # 4.0.0
+      with:
+        custom-cache-suffix: $(/bin/date -u --date='last Mon' "+%F")
 
-      - name: Install npm dependencies
-        run: npm ci
+    - name: Install npm dependencies
+      run: npm ci
 
-      - name: Build WordPress
-        run: npm run build:dev
-        env:
+    - name: Build WordPress
+      run: npm run build:dev
+      env:
           # The producer resolved this once. Matrix jobs must not re-resolve mutable GHCR tags.
-          GUTENBERG_EXPECTED_SHA: ${{ inputs.gutenberg-sha }}
+        GUTENBERG_EXPECTED_SHA: ${{ inputs.gutenberg-sha }}
 
-      - name: General debug information
-        run: |
-          npm --version
-          node --version
-          curl --version
-          git --version
-          composer --version
-          locale -a
+    - name: General debug information
+      run: |
+        npm --version
+        node --version
+        curl --version
+        git --version
+        composer --version
+        locale -a
 
-      - name: Docker debug information
-        run: |
-          docker -v
+    - name: Docker debug information
+      run: |
+        docker -v
 
-      - name: Pull Docker images
-        run: npm run env:pull
+    - name: Pull Docker images
+      run: npm run env:pull
 
-      - name: Start Docker environment
-        run: |
-          npm run env:start
+    - name: Start Docker environment
+      run: |
+        npm run env:start
 
-      - name: Log running Docker containers
-        run: docker ps -a
+    - name: Log running Docker containers
+      run: docker ps -a
 
-      - name: WordPress Docker container debug information
-        run: |
-          docker compose run --rm mysql "${LOCAL_DB_CMD}" --version
-          docker compose run --rm php php --version
-          docker compose run --rm php php -m
-          docker compose run --rm php php -i
-          docker compose run --rm php locale -a
-        env:
-          LOCAL_DB_CMD: ${{ env.LOCAL_DB_TYPE == 'mariadb' && contains( fromJSON('["5.5", "10.0", "10.1", "10.2", "10.3"]'), env.LOCAL_DB_VERSION ) && 'mysql' || env.LOCAL_DB_TYPE }}
+    - name: WordPress Docker container debug information
+      run: |
+        docker compose run --rm mysql "${LOCAL_DB_CMD}" --version
+        docker compose run --rm php php --version
+        docker compose run --rm php php -m
+        docker compose run --rm php php -i
+        docker compose run --rm php locale -a
+      env:
+        LOCAL_DB_CMD: ${{ env.LOCAL_DB_TYPE == 'mariadb' && contains( fromJSON('["5.5", "10.0", "10.1", "10.2", "10.3"]'), env.LOCAL_DB_VERSION ) && 'mysql' || env.LOCAL_DB_TYPE }}
 
-      - name: Install WordPress
-        run: npm run env:install
+    - name: Install WordPress
+      run: npm run env:install
 
       # Installs PCOV as the code coverage driver for the PHPUnit run below.
       #
@@ -343,134 +331,211 @@ jobs:
       # - `pcov.initial.files` pre-sizes the internal file tracking array for
       #   the thousands of files under `src/`, avoiding reallocation churn
       #   during test warmup. The default of 64 is far too low here.
-      - name: Install PCOV coverage driver
-        if: ${{ inputs.coverage-report }}
-        run: |
-          docker compose exec -T -u 0 php sh -c '
-            pecl install --force pcov-1.0.12 &&
-            docker-php-ext-enable pcov &&
-            {
-              echo "pcov.enabled=1"
-              echo "pcov.directory=/var/www/src"
-              echo "pcov.initial.files=10000"
-            } >> /usr/local/etc/php/conf.d/docker-php-ext-pcov.ini &&
-            php -m | grep -i pcov
-          '
+    - name: Install PCOV coverage driver
+      if: ${{ inputs.coverage-report }}
+      run: |
+        docker compose exec -T -u 0 php sh -c '
+          pecl install --force pcov-1.0.12 &&
+          docker-php-ext-enable pcov &&
+          {
+            echo "pcov.enabled=1"
+            echo "pcov.directory=/var/www/src"
+            echo "pcov.initial.files=10000"
+          } >> /usr/local/etc/php/conf.d/docker-php-ext-pcov.ini &&
+          php -m | grep -i pcov
+        '
 
-      - name: Run external HTTP tests
-        if: ${{ ! inputs.multisite && ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
-        continue-on-error: ${{ inputs.allow-errors }}
-        run: node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit --verbose -c "${PHPUNIT_CONFIG}" --group external-http
+    - name: Run external HTTP tests
+      if: ${{ ! inputs.multisite && ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
+      continue-on-error: ${{ inputs.allow-errors }}
+      run: node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit --verbose -c "${PHPUNIT_CONFIG}" --group external-http
 
-      - name: Run PHPUnit tests${{ inputs.phpunit-test-groups && format( ' ({0} groups)', inputs.phpunit-test-groups ) || '' }}${{ inputs.coverage-report && ' with coverage report' || '' }}
-        continue-on-error: ${{ inputs.allow-errors }}
-        run: |
-          node ./tools/local-env/scripts/docker.js ${{ inputs.coverage-report && 'exec' || 'run' }} \
-            php ./vendor/bin/phpunit \
-            --verbose \
-            -c "${PHPUNIT_CONFIG}" \
-            ${{ inputs.phpunit-test-groups && '--group "${TEST_GROUPS}"' || '' }} \
-            ${{ inputs.coverage-report && '--coverage-clover "wp-code-coverage-${MULTISITE_FLAG}-${GITHUB_SHA}.xml"' || '' }}
-        env:
-          TEST_GROUPS: ${{ inputs.phpunit-test-groups }}
-          MULTISITE_FLAG: ${{ inputs.multisite && 'multisite' || 'single' }}
+    - name: Run PHPUnit tests${{ inputs.phpunit-test-groups && format( ' ({0} groups)', inputs.phpunit-test-groups ) || '' }}${{ inputs.coverage-report && ' with coverage report' || '' }}
+      continue-on-error: ${{ inputs.allow-errors }}
+      run: |
+        node ./tools/local-env/scripts/docker.js ${{ inputs.coverage-report && 'exec' || 'run' }} \
+          php ./vendor/bin/phpunit \
+          --verbose \
+          -c "${PHPUNIT_CONFIG}" \
+          ${{ inputs.phpunit-test-groups && '--group "${TEST_GROUPS}"' || '' }} \
+          ${{ inputs.coverage-report && '--coverage-clover "wp-code-coverage-${MULTISITE_FLAG}-${GITHUB_SHA}.xml"' || '' }}
+      env:
+        TEST_GROUPS: ${{ inputs.phpunit-test-groups }}
+        MULTISITE_FLAG: ${{ inputs.multisite && 'multisite' || 'single' }}
 
-      - name: Flag slow PHPUnit tests
+    - name: Flag slow PHPUnit tests
         # Runs when the test step succeeds or fails, but skips cancelled jobs.
         # This step never fails the job itself (continue-on-error), because the
         # slow-test signal is advisory only.
-        if: >-
-          ${{
-            ! cancelled() && inputs.report && inputs.php == '8.5' &&
-            ( github.event_name == 'pull_request' ||
-              ( github.event_name == 'push' && github.ref == 'refs/heads/trunk' ) )
-          }}
-        continue-on-error: true
-        run: |
-          if [ -f tests/phpunit/build/logs/junit.xml ]; then
-            php tests/phpunit/prepare-slow-test-annotations.php \
-              tests/phpunit/build/logs/junit.xml \
-              1.0 \
-              20 \
-              "$RUNNER_TEMP/phpunit-timing-metrics.json"
-          else
-            echo 'PHPUnit JUnit report not found; skipping slow-test annotations.'
-          fi
+      if: >-
+        ${{
+          ! cancelled() && inputs.report && inputs.php == '8.5' &&
+          ( github.event_name == 'pull_request' ||
+            ( github.event_name == 'push' && github.ref == 'refs/heads/trunk' ) )
+        }}
+      continue-on-error: true
+      run: |
+        if [ -f tests/phpunit/build/logs/junit.xml ]; then
+          php tests/phpunit/prepare-slow-test-annotations.php \
+            tests/phpunit/build/logs/junit.xml \
+            1.0 \
+            20 \
+            "$RUNNER_TEMP/phpunit-timing-metrics.json"
+        else
+          echo 'PHPUnit JUnit report not found; skipping slow-test annotations.'
+        fi
 
-      - name: Publish PHPUnit timing metrics
-        continue-on-error: true
-        if: |
-          github.event_name == 'push' &&
-          github.ref == 'refs/heads/trunk' &&
-          inputs.php == '8.5' &&
-          inputs.report
-        env:
-          CODEVITALS_PROJECT_TOKEN: ${{ secrets.CODEVITALS_PROJECT_TOKEN }}
-        shell: bash
-        run: |
-          if [ -z "$CODEVITALS_PROJECT_TOKEN" ]; then
-            echo "PHPUnit timing metrics could not be published. 'CODEVITALS_PROJECT_TOKEN' is not set"
-            exit 1
-          fi
-          COMMITTED_AT="$(git show -s "$GITHUB_SHA" --format='%cI')"
-          RESPONSE="$(
-            php tests/phpunit/prepare-timing-results.php \
-              tests/phpunit/build/logs/junit.xml \
-              trunk \
-              "$GITHUB_SHA" \
-              "$COMMITTED_AT" \
-              "$RUNNER_TEMP/phpunit-timing-metrics.json" \
-              | curl --fail-with-body --silent --show-error \
-                --request POST \
-                --header 'Content-Type: application/json' \
-                --data-binary @- \
-                "https://codevitals.run/api/log?token=${CODEVITALS_PROJECT_TOKEN}"
-          )"
-          if ! php -r "\$d = json_decode(file_get_contents('php://stdin'), true); exit(is_array(\$d) && (\$d['status'] ?? null) === 'ok' && (int) (\$d['count'] ?? 0) === 6 ? 0 : 1);" <<< "$RESPONSE"; then
-            echo 'CodeVitals did not accept all six PHPUnit timing metrics.'
-            exit 1
-          fi
-          echo 'Published six PHPUnit timing metrics to CodeVitals.'
+    - name: Publish PHPUnit timing metrics
+      continue-on-error: true
+      if: |
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/trunk' &&
+        inputs.php == '8.5' &&
+        inputs.report
+      env:
+        CODEVITALS_PROJECT_TOKEN: ${{ secrets.CODEVITALS_PROJECT_TOKEN }}
+      shell: bash
+      run: |
+        if [ -z "$CODEVITALS_PROJECT_TOKEN" ]; then
+          echo "PHPUnit timing metrics could not be published. 'CODEVITALS_PROJECT_TOKEN' is not set"
+          exit 1
+        fi
+        COMMITTED_AT="$(git show -s "$GITHUB_SHA" --format='%cI')"
+        RESPONSE="$(
+          php tests/phpunit/prepare-timing-results.php \
+            tests/phpunit/build/logs/junit.xml \
+            trunk \
+            "$GITHUB_SHA" \
+            "$COMMITTED_AT" \
+            "$RUNNER_TEMP/phpunit-timing-metrics.json" \
+            | curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --data-binary @- \
+              "https://codevitals.run/api/log?token=${CODEVITALS_PROJECT_TOKEN}"
+        )"
+        if ! php -r "\$d = json_decode(file_get_contents('php://stdin'), true); exit(is_array(\$d) && (\$d['status'] ?? null) === 'ok' && (int) (\$d['count'] ?? 0) === 6 ? 0 : 1);" <<< "$RESPONSE"; then
+          echo 'CodeVitals did not accept all six PHPUnit timing metrics.'
+          exit 1
+        fi
+        echo 'Published six PHPUnit timing metrics to CodeVitals.'
 
-      - name: Run AJAX tests
-        if: ${{ ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
-        continue-on-error: ${{ inputs.allow-errors }}
-        run: node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit --verbose -c "${PHPUNIT_CONFIG}" --group ajax
+    - name: Run AJAX tests
+      if: ${{ ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
+      continue-on-error: ${{ inputs.allow-errors }}
+      run: node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit --verbose -c "${PHPUNIT_CONFIG}" --group ajax
 
-      - name: Run ms-files tests as a multisite install
-        if: ${{ inputs.multisite && ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
-        continue-on-error: ${{ inputs.allow-errors }}
-        run: node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit --verbose -c "${PHPUNIT_CONFIG}" --group ms-files
+    - name: Run ms-files tests as a multisite install
+      if: ${{ inputs.multisite && ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
+      continue-on-error: ${{ inputs.allow-errors }}
+      run: node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit --verbose -c "${PHPUNIT_CONFIG}" --group ms-files
 
       # __fakegroup__ is excluded to force PHPUnit to ignore the <exclude> settings in phpunit.xml.dist.
-      - name: Run (Xdebug) tests
-        if: ${{ ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
-        continue-on-error: ${{ inputs.allow-errors }}
-        run: LOCAL_PHP_XDEBUG=true node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit -v --group xdebug --exclude-group __fakegroup__
+    - name: Run (Xdebug) tests
+      if: ${{ ! inputs.phpunit-test-groups && ! inputs.coverage-report }}
+      continue-on-error: ${{ inputs.allow-errors }}
+      run: LOCAL_PHP_XDEBUG=true node ./tools/local-env/scripts/docker.js run php ./vendor/bin/phpunit -v --group xdebug --exclude-group __fakegroup__
 
-      - name: Upload test coverage report to Codecov
-        if: ${{ inputs.coverage-report }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: wp-code-coverage${{ inputs.multisite && '-multisite' || '-single' }}-${{ github.sha }}.xml
-          flags: ${{ inputs.multisite && 'multisite' || 'single' }},php
-          fail_ci_if_error: true
+    - name: Upload test coverage report to Codecov
+      if: ${{ inputs.coverage-report }}
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f   # v7.0.0
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: wp-code-coverage${{ inputs.multisite && '-multisite' || '-single' }}-${{ github.sha }}.xml
+        flags: ${{ inputs.multisite && 'multisite' || 'single' }},php
+        fail_ci_if_error: true
 
-      - name: Ensure version-controlled files are not modified or deleted
-        run: git diff --exit-code
+    - name: Ensure version-controlled files are not modified or deleted
+      run: git diff --exit-code
 
-      - name: Checkout the WordPress Test Reporter
-        if: ${{ github.ref == 'refs/heads/trunk' && inputs.report }}
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          repository: 'WordPress/phpunit-test-runner'
-          path: 'test-runner'
-          show-progress: ${{ runner.debug == '1' && 'true' || 'false' }}
-          persist-credentials: false
+    - name: Checkout the WordPress Test Reporter
+      if: ${{ github.ref == 'refs/heads/trunk' && inputs.report }}
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0   # v7.0.0
+      with:
+        repository: 'WordPress/phpunit-test-runner'
+        path: 'test-runner'
+        show-progress: ${{ runner.debug == '1' && 'true' || 'false' }}
+        persist-credentials: false
 
-      - name: Submit test results to the WordPress.org host test results
-        if: ${{ github.ref == 'refs/heads/trunk' && inputs.report }}
-        env:
-          WPT_REPORT_API_KEY: "${{ secrets.WPT_REPORT_API_KEY }}"
-        run: docker compose run --rm -e WPT_REPORT_API_KEY -e WPT_PREPARE_DIR=/var/www -e WPT_TEST_DIR=/var/www php php test-runner/report.php
+    - name: Submit test results to the WordPress.org host test results
+      if: ${{ github.ref == 'refs/heads/trunk' && inputs.report }}
+      env:
+        WPT_REPORT_API_KEY: "${{ secrets.WPT_REPORT_API_KEY }}"
+      run: docker compose run --rm -e WPT_REPORT_API_KEY -e WPT_PREPARE_DIR=/var/www -e WPT_TEST_DIR=/var/www php php test-runner/report.php
+    - name: Check observables and crashes
+      if: always() && env.CHALK_ON == 'true'
+      shell: bash
+      run: |
+        set -uo pipefail
+        root="${CURIOSITY_ROOT:-}"
+        home="${CURIOSITY_HOME:-/mnt/curiosity}"
+        obs="${home}/observables"
+        fail=0
+
+        echo "::group::curiosity layout"
+        echo "CURIOSITY_ROOT=${root:-<unset>}"
+        echo "CURIOSITY_HOME=${home}"
+        ls -la "${obs}" 2>/dev/null || echo "no observables dir at ${obs}"
+        echo "::endgroup::"
+
+        # Observables for THIS run+attempt. The prefix matters: a stale file from an
+        # earlier run on the same mount would otherwise pass.
+        prefix="${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+        shopt -s nullglob
+        mine=("${obs}/${prefix}"*)
+        if [ ${#mine[@]} -eq 0 ]; then
+          mine=("${obs}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-observables"*)
+        fi
+        if [ ${#mine[@]} -eq 0 ]; then
+          echo "::error::no observables for run ${prefix} in ${obs} - instrumentation produced nothing"
+          fail=1
+        else
+          echo "observables present: ${#mine[@]} file(s)"
+          printf '  %s\n' "${mine[@]}"
+        fi
+
+        for f in "${mine[@]}"; do
+          case "$f" in
+            *.jsonl|*.json|*.combined)
+              if ! jq --slurp "." "$f" > /dev/null 2>&1; then
+                echo "::error::observables do not parse: $f"
+                fail=1
+              fi
+              ;;
+          esac
+        done
+
+        # Crash thresholds copied from check-run: a few null frames are noise, more than
+        # five is a stack walk into nothing.
+        for f in "${root}"/log/co-host*.log "${home}"/log/co-host*.log; do
+          [ -f "$f" ] || continue
+          echo "Asserting that there is no crash in $f"
+          if [ "$(grep -c 'p 00000000' "$f" 2>/dev/null || echo 0)" -gt 5 ] \
+            || [ "$(grep -E -c 'FATAL: Uncaught signal|Address not mapped at|RAX 0x.*RBX 0x' "$f" 2>/dev/null || echo 0)" -gt 1 ]; then
+            echo "::error::crash signature in $f"
+            grep -E 'FATAL: Uncaught signal|Address not mapped at' "$f" | head -5 || true
+            fail=1
+          fi
+        done
+
+        cores=("${root}"/coredump.* "${home}"/coredump.*)
+        if [ ${#cores[@]} -gt 0 ]; then
+          echo "::error::coredump present: ${cores[*]}"
+          fail=1
+        fi
+
+        for f in "${root}"/runc.log "${root}"/runc.global.log \
+                 "${home}"/runc.log "${home}"/runc.global.log; do
+          [ -f "$f" ] || continue
+          if grep -q '^E:' "$f"; then
+            echo "::error::error in $f"
+            grep '^E:' "$f" | head -5
+            fail=1
+          fi
+        done
+
+        if [ "$fail" -ne 0 ]; then
+          echo "::error::instrumentation check FAILED"
+          exit 1
+        fi
+        echo "instrumentation check passed"

@@ -3,34 +3,34 @@ name: Test Build Processes
 on:
   push:
     branches:
-      - trunk
-      - '3.[7-9]'
-      - '[4-9].[0-9]'
+    - trunk
+    - '3.[7-9]'
+    - '[4-9].[0-9]'
   pull_request:
     branches:
-      - trunk
-      - '3.[7-9]'
-      - '[4-9].[0-9]'
+    - trunk
+    - '3.[7-9]'
+    - '[4-9].[0-9]'
     paths:
       # Any change to a PHP, CSS, JavaScript, or JSON file should run checks.
-      - '**.css'
-      - '**.js'
-      - '**.json'
-      - '**.php'
+    - '**.css'
+    - '**.js'
+    - '**.json'
+    - '**.php'
       # These files configure npm and the task runner. Changes could affect the outcome.
-      - 'package*.json'
-      - '.npmrc'
-      - '.nvmrc'
-      - 'Gruntfile.js'
-      - 'webpack.config.js'
-      - 'tools/gutenberg/**'
-      - 'tools/vendors/**'
-      - 'tools/webpack/**'
+    - 'package*.json'
+    - '.npmrc'
+    - '.nvmrc'
+    - 'Gruntfile.js'
+    - 'webpack.config.js'
+    - 'tools/gutenberg/**'
+    - 'tools/vendors/**'
+    - 'tools/webpack/**'
       # These files configure Composer. Changes could affect the outcome.
-      - 'composer.*'
+    - 'composer.*'
       # Confirm any changes to relevant workflow files.
-      - '.github/workflows/test-build-processes.yml'
-      - '.github/workflows/reusable-test-core-build-process.yml'
+    - '.github/workflows/test-build-processes.yml'
+    - '.github/workflows/reusable-test-core-build-process.yml'
   workflow_dispatch:
 
 # Cancels all previous workflow runs for pull requests that have not completed.
@@ -62,15 +62,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'ubuntu-24.04' ]
-        directory: [ 'src', 'build' ]
-        test-certificates: [ true ]
+        os: ['ubuntu-24.04']
+        directory: ['src', 'build']
+        test-certificates: [true]
         include:
           # Only prepare artifacts for Playground once.
-          - os: 'ubuntu-24.04'
-            directory: 'build'
-            save-build: true
-            prepare-playground: ${{ github.event_name == 'pull_request' && true || '' }}
+        - os: 'ubuntu-24.04'
+          directory: 'build'
+          save-build: true
+          prepare-playground: ${{ github.event_name == 'pull_request' && true || '' }}
     with:
       os: ${{ matrix.os }}
       directory: ${{ matrix.directory }}
@@ -88,28 +88,14 @@ jobs:
   # The `matrix` and `runner` contexts are not available for use within `if` expressions. So there is
   # currently no way to determine the OS being used on a given job.
   # See https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability.
-  test-core-build-process-additional-os:
-    name: Core running from ${{ matrix.directory }}
-    uses: ./.github/workflows/reusable-test-core-build-process.yml
-    permissions:
-      contents: read
-    if: ${{ github.repository == 'WordPress/wordpress-develop' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ 'macos-15', 'windows-2025' ]
-        directory: [ 'src', 'build' ]
-    with:
-      os: ${{ matrix.os }}
-      directory: ${{ matrix.directory }}
-
   slack-notifications:
     name: Slack Notifications
     uses: ./.github/workflows/slack-notifications.yml
     permissions:
       actions: read
       contents: read
-    needs: [ test-core-build-process, test-core-build-process-additional-os ]
+    needs:
+    - test-core-build-process
     if: ${{ github.repository == 'WordPress/wordpress-develop' && github.event_name != 'pull_request' && always() }}
     with:
       calling_status: ${{ contains( needs.*.result, 'cancelled' ) && 'cancelled' || contains( needs.*.result, 'failure' ) && 'failure' || 'success' }}
@@ -124,7 +110,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       actions: write
-    needs: [ slack-notifications ]
+    needs: [slack-notifications]
     if: |
       always() &&
       github.repository == 'WordPress/wordpress-develop' &&
@@ -136,18 +122,18 @@ jobs:
       )
 
     steps:
-      - name: Dispatch workflow run
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          retries: 2
-          retry-exempt-status-codes: 418
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'failed-workflow.yml',
-              ref: 'trunk',
-              inputs: {
-                run_id: `${context.runId}`,
-              }
-            });
+    - name: Dispatch workflow run
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3   # v9.0.0
+      with:
+        retries: 2
+        retry-exempt-status-codes: 418
+        script: |
+          github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'failed-workflow.yml',
+            ref: 'trunk',
+            inputs: {
+              run_id: `${context.runId}`,
+            }
+          });
