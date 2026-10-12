@@ -9,9 +9,6 @@ on:
       - '.github/workflows/test-old-branches.yml'
       - '.github/workflows/reusable-*.yml'
   # Run twice a month on the 1st and 15th at 00:00 UTC.
-  schedule:
-    - cron: '0 0 1 * *'
-    - cron: '0 0 15 * *'
   workflow_dispatch:
     inputs:
       strategy:
